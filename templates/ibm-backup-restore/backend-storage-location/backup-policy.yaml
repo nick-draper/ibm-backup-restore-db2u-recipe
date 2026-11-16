@@ -1,0 +1,25 @@
+# BackupPolicy: schedule and retention
+#
+# Backs up daily at 04:00 Australia/Melbourne and keeps each backup for 5 days,
+# writing to db2u-instance-backup-storage-location. provider must stay
+# isf-backup-restore. Change the schedule, timezone and retention to suit.
+#
+# Values from .env: FUSION_NS
+# Apply: oc apply -f build/ibm-backup-restore/backend-storage-location/backup-policy.yaml
+# Used in: docs/deployment-guide.md section 4.3
+---
+apiVersion: data-protection.isf.ibm.com/v1alpha1
+kind: BackupPolicy
+metadata:
+  name: db2u-instance-backup-policy
+  namespace: ${FUSION_NS}
+spec:
+  backupStorageLocation: db2u-instance-backup-storage-location
+  provider: isf-backup-restore
+  retention:
+    number: 5
+    unit: days
+  schedule:
+    cron: '00 04 * * *'
+    timezone: Australia/Melbourne
+...

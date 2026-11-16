@@ -1,0 +1,101 @@
+# Db2uInstance: the database this recipe backs up
+#
+# A single-partition Db2 Warehouse instance. Two parts matter to the recipe:
+#   - Label for-backup=true: the child recipe's instance pause hook and
+#     readiness check select on it.
+#   - Required node affinity: run only on nodes labelled
+#     <CLUSTER_DOMAIN>/environment=prod, never on Fusion AFM nodes. The Transform
+#     rewrites the environment rule by position on restore, so keep it first
+#     in matchExpressions.
+#
+# Values from .env: CLUSTER_DOMAIN, DB2_INSTANCE_NAME, SOURCE_NS, DB2_LICENSE, STORAGE_CLASS
+# Apply: oc apply -f build/db2u-instance/db2u-instance.yaml
+# Used in: docs/deployment-guide.md section 3.4
+---
+apiVersion: db2u.databases.ibm.com/v1
+kind: Db2uInstance
+metadata:
+  name: '${DB2_INSTANCE_NAME}'
+  namespace: ${SOURCE_NS}
+  labels:
+    ${CLUSTER_DOMAIN}/environment: prod
+    for-backup: 'true'
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+            - key: ${CLUSTER_DOMAIN}/environment
+              operator: In
+              values: 
+                - prod
+            - key: scale.spectrum.ibm.com/role
+              operator: NotIn 
+              values:
+                - afm
+  account:
+    securityConfig:
+      privilegedSysctlInit: true
+  addOns:
+    opendataformats:
+      workloadProfile: default
+  advOpts:
+    timezone: Australia/Melbourne
+  environment:
+    authentication:
+      ldap:
+        enabled: true
+    databases:
+      - name: DWDB01
+        settings:
+          dftTableOrg: 'ROW'
+    dbType: db2wh
+    instance:
+      dbmConfig:
+        AUTHENTICATION: SERVER
+    partitionConfig:
+      dataOnMln0: true
+      total: 1
+      volumePerPartition: true
+  license:
+    accept: true
+    value: '${DB2_LICENSE}'
+  nodes: 1
+  podTemplate:
+    db2u:
+      resource:
+        db2u:
+          limits:
+            cpu: '4'
+            memory: 16Gi
+  storage:
+    - name: meta
+      spec:
+        accessModes:
+          - ReadWriteMany
+        resources:
+          requests:
+            storage: 5Gi
+        storageClassName: ${STORAGE_CLASS}
+      type: create
+    - name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+        storageClassName: ${STORAGE_CLASS}
+      type: template
+    - name: tempts
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+        storageClassName: ${STORAGE_CLASS}
+      type: template
+  version: s12.1.4.0
+...

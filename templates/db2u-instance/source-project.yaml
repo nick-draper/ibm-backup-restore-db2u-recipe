@@ -1,0 +1,17 @@
+# Project: source namespace
+#
+# Where the Db2uInstance is deployed, and the namespace Fusion discovers and
+# backs up as an Application.
+#
+# Values from .env: SOURCE_NS
+# Apply: oc apply -f build/db2u-instance/source-project.yaml
+# Used in: docs/deployment-guide.md section 3.1
+---
+kind: Project
+apiVersion: project.openshift.io/v1
+metadata:
+  name: ${SOURCE_NS}
+  annotations:
+    openshift.io/description: 'Db2uInstance namespace; Fusion backs it up as an Application'
+    openshift.io/display-name: DB2U Instance (PROD)
+...

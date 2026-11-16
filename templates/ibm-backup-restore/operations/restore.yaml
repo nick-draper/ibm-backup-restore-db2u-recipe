@@ -1,0 +1,26 @@
+# Restore: a backup into the restore target namespace
+#
+# Restores a backup of the source into the target with the parent recipe and
+# the Transform. Set a unique metadata.name and spec.backup in the rendered
+# copy for each run.
+#
+# Values from .env: CLUSTER_DOMAIN, FUSION_NS, SOURCE_NS, TARGET_NS, ENV_LABEL
+# Apply: oc apply -f build/ibm-backup-restore/operations/restore.yaml
+# Used in: docs/operations.md, Restore into another namespace
+---
+apiVersion: data-protection.isf.ibm.com/v1alpha1
+kind: Restore
+metadata:
+  name: custom-restore-db2u-instance-20261112-1730
+  namespace: ${FUSION_NS}
+spec:
+  backup: ${SOURCE_NS}-db2u-instance-backup-policy-apps.${CLUSTER_DOMAIN}-202611120622
+  namespaceMapping:
+    ${SOURCE_NS}: ${TARGET_NS}
+  recipe:
+    name: db2u-control
+    namespace: ${FUSION_NS}
+  transform: db2u-instance-restore-transform
+  transformMapping:
+    ENV: '${ENV_LABEL}'
+...

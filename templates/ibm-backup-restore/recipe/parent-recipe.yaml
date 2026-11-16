@@ -1,0 +1,80 @@
+# Parent recipe: Db2u orchestration (tested on Fusion 2.12.2 Dynamic Recipe)
+#
+# Has no hooks. It holds the anchor group and the backup and restore
+# workflows, each of which calls one child workflow. Every hook and every
+# step lives in the child, so a failure anywhere in a backup undoes the
+# completed steps with their inverseOps.
+#
+# The hooks live in the child because there the GROUP namespace variable
+# resolves during a cross-namespace restore. Annotation hooks defined in a
+# parent did not resolve it.
+#
+# Comments must not contain dollar-brace text: Fusion reads it as a recipe
+# variable.
+#
+# Prerequisites:
+#   - IBM Fusion Backup & Restore 2.10+ (dynamic recipes)
+#   - Db2 12.1.4+ recommended (the db2-veleroplugin Velero plug-in preserves
+#     credentials and the license)
+#   - Fusion's transaction-manager able to patch Db2uInstances, Db2uEngines
+#     and namespaces (checked in docs/deployment-guide.md section 4.4)
+#   - Db2uInstance labelled for-backup=true
+#
+# Customize:
+#   - Assign this recipe name on the PolicyAssignment / Restore
+#
+# Values from .env: FUSION_NS
+# Apply: oc apply -f build/ibm-backup-restore/recipe/parent-recipe.yaml
+# Used in: docs/deployment-guide.md section 4.4
+---
+apiVersion: spp-data-protection.isf.ibm.com/v1alpha1
+kind: Recipe
+metadata:
+  name: db2u-control
+  namespace: ${FUSION_NS}
+
+spec:
+  appType: db2uinstance
+
+  groups:
+    # Variable anchor only. Not used in any workflow here, so it backs up
+    # nothing itself.
+    #
+    # Keep it type: resource. A volume group here selects the same PVCs as the
+    # child's db2u-volumes group: when both recipes defined db2u-volumes, child
+    # hooks bound to the parent's group. Do not name it db2u-volumes.
+    #
+    # The child defines a resource group with this same name and include type,
+    # and its hooks take the namespace from it. That is the tested combination;
+    # renaming either group breaks the child's references.
+    - name: db2u-db2uinstances
+      type: resource
+      backupVolumes: fusion
+      disableTransform: false
+      includedResourceTypes:
+        - db2uinstances.db2u.databases.ibm.com
+
+  workflows:
+    # Placeholders. The child supplies these sequences at priority 1000.
+    - name: instance-backup
+      failOn: any-error
+      priority: 0
+      sequence: []
+
+    - name: instance-restore
+      failOn: any-error
+      priority: 0
+      sequence: []
+
+    - name: backup
+      failOn: any-error
+      priority: 0
+      sequence:
+        - workflow: instance-backup
+
+    - name: restore
+      failOn: any-error
+      priority: 0
+      sequence:
+        - workflow: instance-restore
+...

@@ -1,0 +1,19 @@
+# Backup: on-demand backup of the source application
+#
+# Runs one backup now with db2u-instance-backup-policy, outside the daily
+# schedule. Set a unique metadata.name in the rendered copy for each run;
+# rendering again resets it.
+#
+# Values from .env: FUSION_NS, SOURCE_NS
+# Apply: oc apply -f build/ibm-backup-restore/operations/backup.yaml
+# Used in: docs/operations.md, Back up
+---
+apiVersion: data-protection.isf.ibm.com/v1alpha1
+kind: Backup
+metadata:
+  name: backup-db2u-instance-20261113
+  namespace: ${FUSION_NS}
+spec:
+  application: ${SOURCE_NS}
+  backupPolicy: db2u-instance-backup-policy
+...

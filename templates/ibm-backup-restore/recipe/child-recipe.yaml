@@ -1,0 +1,235 @@
+# Child recipe: Db2u instance namespace protection (tested on Fusion 2.12.2 Dynamic Recipe)
+#
+# Discovered by the parent via labels. Owns every group, hook and step: the
+# parent's backup and restore workflows each call one workflow here.
+#
+# Maintenance mode and the target display name are annotation hooks. Fusion
+# runs them as its transaction-manager service account in ibm-backup-restore,
+# which needs get, list and patch on Db2uInstances, Db2uEngines and
+# namespaces. Fusion 2.12.2 granted that already; docs/deployment-guide.md
+# section 4.4 checks it. Without it, the hooks fail with Forbidden.
+# manage_snapshots and the settle wait are exec hooks in the db2u container
+# of dashmpp-head-0.
+#
+# Pause, snapshot and unpause are in one sequence, so a failure at any step
+# runs the inverseOp of every completed step, newest first.
+#
+# Every hook takes its namespace from the db2u-db2uinstances group, which
+# follows namespaceMapping on restore. Do not hardcode the instance
+# namespace. A trailing - on an annotation removes it.
+#
+# Fusion restores the Db2uInstance without the maintenance annotation, so a
+# restored instance is not paused. The unpause steps at the end of the
+# restore are kept as a safety net; removing an absent annotation succeeds.
+#
+# Comments must not contain dollar-brace text: Fusion reads it as a recipe
+# variable. Exec commands use the JSON-array form that runs on the cluster;
+# the multi-line shell form did not run.
+#
+# Label Db2uInstance objects with for-backup=true: the instance maintenance
+# hook and the db2uinstance-check readiness hook select on it.
+#
+# Customize:
+#   - Display-name text in ns-display-name (Restored, then the source
+#     namespace)
+#
+# Values from .env: FUSION_NS
+# Apply: oc apply -f build/ibm-backup-restore/recipe/child-recipe.yaml
+# Used in: docs/deployment-guide.md section 4.4
+---
+apiVersion: spp-data-protection.isf.ibm.com/v1alpha1
+kind: Recipe
+metadata:
+  name: db2u-workflow
+  namespace: ${FUSION_NS}
+  labels:
+    dp.isf.ibm.com/parent-recipe: db2u-control
+    dp.isf.ibm.com/parent-recipe-namespace: ${FUSION_NS}
+
+spec:
+  appType: db2uinstance
+
+  # Include-lists only. IBM's sample excludes a denylist and then backs up
+  # everything else in the namespace (including operator/OLM if colocated).
+  # An allow-list fails closed: a new resource type is not backed up until
+  # you add it after resource discovery.
+  groups:
+    - name: db2u-volumes
+      type: volume
+      backupVolumes: fusion
+      disableTransform: false
+
+    - name: db2u-resources
+      type: resource
+      backupVolumes: fusion
+      disableTransform: false
+      includedResourceTypes:
+        - configmaps
+        - secrets
+
+    - name: db2u-db2uinstances
+      type: resource
+      backupVolumes: fusion
+      disableTransform: false
+      includedResourceTypes:
+        - db2uinstances.db2u.databases.ibm.com
+
+  hooks:
+    # Pause and resume reconcile on the Db2uInstance
+    - name: db2uinstance-maint
+      type: annotation
+      namespace: '${GROUP.db2u-db2uinstances.namespace}'
+      selectResource: db2u.databases.ibm.com/v1/db2uinstances
+      labelSelector: for-backup=true
+      onError: fail
+      timeout: 60
+      ops:
+        - name: pause
+          inverseOp: unpause
+          annotations: db2u.databases.ibm.com/maintenance-pause-reconcile=true
+          overwrite: true
+          onError: fail
+          timeout: 60
+        - name: unpause
+          annotations: db2u.databases.ibm.com/maintenance-pause-reconcile-
+          overwrite: true
+          onError: fail
+          timeout: 60
+
+    # Pause and resume reconcile on the Db2uEngine
+    - name: db2uengine-maint
+      type: annotation
+      namespace: '${GROUP.db2u-db2uinstances.namespace}'
+      selectResource: db2u.databases.ibm.com/v1alpha1/db2uengines
+      labelSelector: 'type=engine,component=db2wh,formation_type=db2wh'
+      onError: fail
+      timeout: 60
+      ops:
+        - name: pause
+          inverseOp: unpause
+          annotations: db2u.databases.ibm.com/maintenance-pause-reconcile=true
+          overwrite: true
+          onError: fail
+          timeout: 60
+        - name: unpause
+          annotations: db2u.databases.ibm.com/maintenance-pause-reconcile-
+          overwrite: true
+          onError: fail
+          timeout: 60
+
+    # Names the restore target Project after the backup's source. The GROUP
+    # variable in nameSelector finds the target namespace; in the annotation
+    # value it gives the source namespace, so a restore of db2u-instance into
+    # db2u-instance-dev shows DB2U Instance (Restored db2u-instance). Tested on
+    # Fusion 2.12.2.
+    - name: ns-display-name
+      type: annotation
+      namespace: '${GROUP.db2u-db2uinstances.namespace}'
+      selectResource: namespaces
+      nameSelector: '${GROUP.db2u-db2uinstances.namespace}'
+      onError: continue
+      timeout: 60
+      ops:
+        - name: set
+          annotations: 'openshift.io/display-name=DB2U Instance (Restored ${GROUP.db2u-db2uinstances.namespace})'
+          overwrite: true
+          onError: continue
+          timeout: 60
+
+    # Readiness checks
+    - name: db2uengine-check
+      type: check
+      namespace: '${GROUP.db2u-db2uinstances.namespace}'
+      selectResource: db2u.databases.ibm.com/v1alpha1/db2uengines
+      labelSelector: 'type=engine,component=db2wh,formation_type=db2wh'
+      onError: fail
+      timeout: 600
+      chks:
+        - name: stateReady
+          condition: '{$.status.state} == {"Ready"}'
+          onError: fail
+          timeout: 600
+
+    - name: db2uinstance-check
+      type: check
+      namespace: '${GROUP.db2u-db2uinstances.namespace}'
+      selectResource: db2u.databases.ibm.com/v1/db2uinstances
+      labelSelector: for-backup=true
+      onError: fail
+      timeout: 900
+      chks:
+        - name: stateReady
+          condition: '{$.status.state} == {"Ready"}'
+          onError: fail
+          timeout: 900
+
+    # Write suspend / resume, snapshot restore and the settle wait, in the
+    # db2u container. The hook timeout must cover its longest op: the
+    # snapshot restore, allowed 600 s.
+    - name: db2uinstances-pod-exec
+      type: exec
+      namespace: '${GROUP.db2u-db2uinstances.namespace}'
+      labelSelector: name=dashmpp-head-0
+      selectResource: pod
+      onError: fail
+      timeout: 600
+      ops:
+        - name: suspend
+          inverseOp: resume
+          container: db2u
+          overwrite: false
+          timeout: 300
+          command: |
+            ["/bin/bash", "-c", "manage_snapshots --action suspend --retry 3"]
+
+        - name: resume
+          container: db2u
+          overwrite: false
+          timeout: 300
+          command: |
+            ["/bin/bash", "-c", "manage_snapshots --action resume --retry 3"]
+
+        - name: restore
+          container: db2u
+          overwrite: false
+          timeout: 600
+          command: |
+            ["/bin/bash", "-c", "manage_snapshots --action restore --retry 3"]
+
+        - name: settle
+          container: db2u
+          overwrite: false
+          timeout: 360
+          command: |
+            ["/bin/bash", "-c", "sleep 300"]
+
+  workflows:
+    - name: instance-backup
+      failOn: any-error
+      priority: 1000
+      sequence:
+        - hook: db2uinstance-maint/pause
+        - hook: db2uengine-maint/pause
+        - group: db2u-resources
+        - group: db2u-db2uinstances
+        - hook: db2uinstances-pod-exec/suspend
+        - group: db2u-volumes
+        - hook: db2uinstances-pod-exec/resume
+        - hook: db2uengine-maint/unpause
+        - hook: db2uinstance-maint/unpause
+
+    - name: instance-restore
+      failOn: any-error
+      priority: 1000
+      sequence:
+        - group: db2u-volumes
+        - group: db2u-resources
+        - group: db2u-db2uinstances
+        - hook: db2uengine-check/stateReady
+        - hook: db2uinstances-pod-exec/restore
+        - hook: db2uinstance-check/stateReady
+        - hook: db2uinstances-pod-exec/settle
+        - hook: db2uengine-maint/unpause
+        - hook: db2uinstance-maint/unpause
+        - hook: ns-display-name/set
+...

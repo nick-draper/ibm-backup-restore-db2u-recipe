@@ -1,0 +1,25 @@
+# BackupStorageLocation: where Fusion writes backups
+#
+# An S3 bucket, reached with the key pair in secret.yaml and, for a private
+# CA, the certificate in ca-cert-secret.yaml. provider must stay
+# isf-backup-restore.
+#
+# Values from .env: FUSION_NS, S3_BUCKET_NAME, S3_ENDPOINT, S3_REGION
+# Apply: oc apply -f build/ibm-backup-restore/backend-storage-location/backup-storage-location.yaml
+# Used in: docs/deployment-guide.md section 4.2
+---
+apiVersion: data-protection.isf.ibm.com/v1alpha1
+kind: BackupStorageLocation
+metadata:
+  name: db2u-instance-backup-storage-location
+  namespace: ${FUSION_NS}
+spec:
+  credentialName: db2u-instance-backup-secret
+  params:
+    bucket: ${S3_BUCKET_NAME}
+    endpoint: '${S3_ENDPOINT}'
+    region: ${S3_REGION}
+  privateCertificateName: minio-registry-cert-secret
+  provider: isf-backup-restore
+  type: s3
+...

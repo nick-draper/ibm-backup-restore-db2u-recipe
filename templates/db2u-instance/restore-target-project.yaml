@@ -1,0 +1,20 @@
+# Project: restore target namespace
+#
+# Left empty: nothing is deployed here. A Fusion Restore fills it from a
+# backup, and the child recipe's ns-display-name hook overwrites the display
+# name with "DB2U Instance (Restored <source namespace>)". Create it, and add
+# it to the operator
+# scope, before every restore into it.
+#
+# Values from .env: TARGET_NS, ENV_LABEL (in capitals, as ENV_LABEL_UPPER)
+# Apply: oc apply -f build/db2u-instance/restore-target-project.yaml
+# Used in: docs/deployment-guide.md section 3.1
+---
+kind: Project
+apiVersion: project.openshift.io/v1
+metadata:
+  name: ${TARGET_NS}
+  annotations:
+    openshift.io/description: 'Empty project that a Fusion restore fills; nothing is deployed here'
+    openshift.io/display-name: 'DB2U Instance restore target (${ENV_LABEL_UPPER})'
+...

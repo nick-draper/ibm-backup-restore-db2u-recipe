@@ -1,0 +1,18 @@
+.DS_Store
+
+# Your values and the manifests rendered from them (scripts/render.sh).
+# The committed manifests hold ${NAME} placeholders only.
+.env
+build/
+
+# Stray credential files, and the object-storage CA certificate (S3_CA_CERT).
+*.crt
+*.pem
+**/*backup-secret*
+**/*credentials*
+
+# Claude Code session files
+.claude/
+
+# Local session notes, kept out of the repo
+.handoff/

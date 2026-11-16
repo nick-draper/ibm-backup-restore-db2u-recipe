@@ -1,0 +1,51 @@
+# Transform: rewrite restored objects for their new environment
+#
+# Named by each Restore. On the Db2uInstance it replaces the environment value
+# in the first node-affinity rule and the <CLUSTER_DOMAIN>/environment label with
+# ENV, and adds backup=restored. On every restored PVC it sets the same two
+# labels. ENV is Fusion's own variable, set by transformMapping on the
+# Restore (ENV_LABEL in .env); render.sh leaves it alone.
+#
+# The JSON paths must match your Db2uInstance. Check them if you change the
+# instance's affinity or labels.
+#
+# Values from .env: CLUSTER_DOMAIN, FUSION_NS, DB2_INSTANCE_NAME
+# Apply: oc apply -f build/ibm-backup-restore/transform/transform.yaml
+# Used in: docs/deployment-guide.md section 4.4
+---
+apiVersion: data-protection.isf.ibm.com/v1alpha1
+kind: Transform
+metadata:
+  name: db2u-instance-restore-transform
+  namespace: ${FUSION_NS}
+spec:
+  transforms:
+    - json:
+        - op: replace
+          path: /spec/affinity/nodeAffinity/requiredDuringSchedulingIgnoredDuringExecution/nodeSelectorTerms/0/matchExpressions/0/values/0
+          value: '${ENV}'
+        # JSON Pointer writes the / in a label key as ~1 (<CLUSTER_DOMAIN>/environment).
+        - op: replace
+          path: /metadata/labels/${CLUSTER_DOMAIN}~1environment
+          value: '${ENV}'
+        - op: add
+          path: /metadata/labels/backup
+          value: restored
+      name: update-db2uinstance
+      subject:
+        groupResource: db2uinstances.db2u.databases.ibm.com
+        resourceNameRegex: '${DB2_INSTANCE_NAME}'
+    # add, not replace: add sets a label whether or not the PVC already has it,
+    # replace fails when it is missing.
+    - json:
+        - op: add
+          path: /metadata/labels/${CLUSTER_DOMAIN}~1environment
+          value: '${ENV}'
+        - op: add
+          path: /metadata/labels/backup
+          value: restored
+      name: update-pvcs
+      subject:
+        groupResource: persistentvolumeclaims
+        resourceNameRegex: .*
+...

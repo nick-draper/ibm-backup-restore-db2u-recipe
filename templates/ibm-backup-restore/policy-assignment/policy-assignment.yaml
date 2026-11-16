@@ -1,0 +1,26 @@
+# PolicyAssignment: ties the application, policy and parent recipe together
+#
+# Assigns db2u-instance-backup-policy and the parent recipe to the source
+# application. Apply it before the first backup: a backup taken without the
+# recipe has no quiesce, and a restore cannot add one later. runNow: false
+# keeps applying it from starting a backup.
+#
+# Values from .env: FUSION_NS, SOURCE_NS
+# Apply: oc apply -f build/ibm-backup-restore/policy-assignment/policy-assignment.yaml
+# Used in: docs/deployment-guide.md section 4.5
+---
+apiVersion: data-protection.isf.ibm.com/v1alpha1
+kind: PolicyAssignment
+metadata:
+  name: db2u-instance-recipe-policy-assignment
+  namespace: ${FUSION_NS}
+spec:
+  application: ${SOURCE_NS}
+  backupPolicy: db2u-instance-backup-policy
+  recipe:
+    apiVersion: spp-data-protection.isf.ibm.com/v1alpha1
+    kind: Recipe
+    name: db2u-control
+    namespace: ${FUSION_NS}
+  runNow: false
+...
