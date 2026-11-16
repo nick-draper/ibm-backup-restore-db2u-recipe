@@ -1,7 +1,7 @@
 [![OpenShift](https://img.shields.io/badge/OpenShift-tested%20on%204.20.28-ee0000)](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20)
 [![IBM Fusion](https://img.shields.io/badge/IBM%20Fusion-tested%20on%202.12.2-0f62fe)](https://www.ibm.com/docs/en/fusion-software/2.12.0?topic=recipe-dynamic)
 [![Db2uInstance](https://img.shields.io/badge/Db2uInstance-tested%20on%2012.1.4-0530ad)](docs/deployment-guide.md#prerequisites)
-[![Last commit](https://img.shields.io/github/last-commit/nick-draper/ibm-backup-restore-db2-recipe)](https://github.com/nick-draper/ibm-backup-restore-db2-recipe/commits/main)
+[![Last commit](https://img.shields.io/github/last-commit/nick-draper/ibm-backup-restore-db2u-recipe)](https://github.com/nick-draper/ibm-backup-restore-db2u-recipe/commits/main)
 
 # IBM Fusion Backup & Restore Db2uInstance Recipe
 
@@ -10,15 +10,15 @@ A recipe for protecting and restoring a **Db2uInstance** with IBM Fusion Backup 
 - Operator and database instance in separate namespaces
 - Targeted backups, with an allow-list of resource types
 - Dynamic parent/child recipes using Fusion variables
-- A dedicated helper pod runs the recipe hooks, so no hook runs in the operator namespace
+- Fusion annotation hooks set maintenance mode and the target display name, so no hook runs in the operator namespace and nothing extra is deployed to run them
 - Cross-namespace restore with a Transform, `namespaceMapping` and a target display name
 - Inverse operations undo maintenance mode and quiesce steps if a later step fails
 
 The diagram below outlines the recipe architecture:
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/architecture-dark.svg">
-  <img alt="Recipe architecture. The parent recipe db2u-instance-helper-parent wraps the child recipe; it runs helper-exec in the recipe-helper pod, which patches the Db2uInstance and Db2uEngine, and the child execs manage_snapshots in the db2u pod in db2u-instance. Backup and Restore CRs run the parent; a Restore names the Transform, which rewrites the restored objects in db2u-instance-dev. The policy assignment names the application, the parent recipe and the backup policy, which writes to the backup storage location. The storage location and Fusion Velero in ibm-backup-restore both use S3 object storage; on a restore, Velero reads the data back and restores it into db2u-instance-dev." src="docs/images/architecture-light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/how-it-works-recipes-architecture-dark.svg">
+  <img alt="Recipe architecture. The parent recipe db2u-control wraps the child recipe, which holds every hook: Fusion's transaction-manager runs the child's annotation hooks, which pause and unpause the Db2uInstance and Db2uEngine and set the restore target project's display name to Restored with the source namespace, and the child execs manage_snapshots in the db2u pod in db2u-instance. Backup and Restore CRs run the parent; a Restore names the Transform, which rewrites the restored objects in db2u-instance-dev. The policy assignment names the application, the parent recipe and the backup policy, which writes to the backup storage location. The storage location and Fusion Velero in ibm-backup-restore both use S3 object storage; on a restore, Velero reads the data back and restores it into db2u-instance-dev." src="docs/images/how-it-works-recipes-architecture-light.svg">
 </picture>
 
 ## Documentation
@@ -36,20 +36,19 @@ Read the pages in this order. The [docs index](docs/README.md) also links to eve
 ```text
 README.md                         overview and links to the docs
 LICENSE                           Apache License 2.0
-.githooks/                        pre-commit hook that blocks a filled license or key
+.githooks/                        pre-commit hook that blocks a filled-in placeholder
 docs/                             how it works, deployment guide, object storage, operations, diagrams
-.env.example                      your values: namespaces, instance, license, storage, env label, helper image, S3
-db2u-instance/                    projects, Db2uInstance, operator scope         (template)
-ibm-backup-restore/
-├── backend-storage-location/     credentials, CA cert, storage location, policy (template)
-├── recipe/                       parent and child recipes                       (apply as is)
-├── transform/                    restore transform                              (check JSON paths)
-├── policy-assignment/            application + policy + parent recipe           (apply as is)
-├── operations/                   Backup and Restore CRs                         (template; name per run)
-└── config/                       Velero plugin note, not a manifest
-recipe-helper/                    project, service account, RBAC, deployment     (set image)
-scripts/                          render (.env to build/), placeholder check (pre-commit), discovery
-build/                            rendered manifests you apply (git-ignored)
+.env.example                      your values: namespaces, instance, license, storage, env label, S3
+templates/                        manifests with ${NAME} placeholders, filled from .env by render
+├── db2u-instance/                projects, Db2uInstance
+└── ibm-backup-restore/
+    ├── backend-storage-location/ credentials, CA cert, storage location, policy
+    ├── recipe/                   parent and child recipes
+    ├── transform/                restore transform (check JSON paths)
+    ├── policy-assignment/        application + policy + parent recipe
+    └── operations/               Backup and Restore CRs (name per run)
+scripts/                          render (templates/ to build/), placeholder check (pre-commit), discovery
+build/                            rendered manifests you apply, same layout without templates/ (git-ignored)
 ```
 
 ## Disclaimer
