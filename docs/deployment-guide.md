@@ -510,7 +510,7 @@ oc get backuppolicies.data-protection.isf.ibm.com db2u-instance-backup-policy -n
 
 Files: [`templates/ibm-backup-restore/recipe/`](../templates/ibm-backup-restore/recipe/), [`templates/ibm-backup-restore/transform/`](../templates/ibm-backup-restore/transform/). Apply the recipes on every cluster that backs up **and** every cluster that restores.
 
-The child recipe's annotation hooks set and clear maintenance mode on the `Db2uInstance` and `Db2uEngine`, and set the target Project's display name. Fusion runs them as its own `transaction-manager` service account in `ibm-backup-restore`. On the tested Fusion 2.12.2 cluster that account could already patch all three without anything added, so there is nothing to apply. Check it on each cluster first:
+The child recipe's annotation hooks set and clear maintenance mode on the `Db2uInstance` and `Db2uEngine`, and set the target Project's display name. Fusion runs them as its own `transaction-manager` service account in `ibm-backup-restore`. On the tested Fusion 2.12.2 cluster, the transaction-manager account was already configured with these permissions, so nothing was applied there. Don’t assume yours is. check it on each cluster first:
 
 ```bash
 SA=system:serviceaccount:ibm-backup-restore:transaction-manager
