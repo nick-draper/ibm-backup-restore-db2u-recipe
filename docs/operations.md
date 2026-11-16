@@ -153,10 +153,4 @@ Db2 recovery can take a long time. Crash recovery, log replay, and rollback are 
 
 The recipe allows `manage_snapshots --action restore` 10 minutes. It only brings the database out of write suspend; with snapshots taken in write suspend it normally finishes in a minute or two. If yours runs longer, raise that op's `timeout`, and the hook's, in `child-recipe.yaml`.
 
-Size the target for recovery, not for steady state. Watch pod CPU, memory, and volume latency while `manage_snapshots restore` and the readiness checks run. Set the Restore timeout from a measured run in your cluster. Cancel a stuck restore before the timeout fires.
-
-We also saw a Restore timeout followed by deletion of the **target** namespace, rather than a partial apply left in place. Treat that as a data-loss risk:
-
-- Measure restore time before you depend on it.
-- Set the timeout above that measurement.
-- If a target namespace disappears, read the Restore status and the audit log before you assume a person deleted the project.
+Size the target for recovery, not for steady state. Watch pod CPU, memory, and volume latency while `manage_snapshots restore` and the readiness checks run. Set the Restore timeout from a measured run in your cluster.
