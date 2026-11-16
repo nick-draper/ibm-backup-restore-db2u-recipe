@@ -629,7 +629,7 @@ Backups, restores, the checks after each, and the UI walkthrough: [operations.md
 
 | Symptom | Check |
 | --- | --- |
-| `KeyError: 'db2-operator'` or `KeyError: 'recipe-helper'` on restore | An old recipe still has a hook in a fixed namespace. Apply the current recipes (§4.4) and drop that namespace from the Restore's `namespaceMapping` |
+| `KeyError: 'db2-operator'` on restore | An old recipe still has a hook in a fixed namespace. Apply the current recipes (§4.4) and drop that namespace from the Restore's `namespaceMapping` |
 | Annotation hook `Forbidden` | Run the §4.4 `can-i` check on that cluster; add the missing rules to `transaction-manager-ibm-backup-restore` as §4.4 shows (again after a Fusion upgrade) |
 | Backup does not pause the instance | `for-backup=true` on the instance (§3.4); engine labels in `db2uengine-maint` |
 | Restored instance never reconciles | Target missing from the OperatorGroup or `namespace-scope` ConfigMap (§3.2) |
