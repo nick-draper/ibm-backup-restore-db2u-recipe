@@ -6,8 +6,9 @@
 # Maintenance mode and the target display name are annotation hooks. Fusion
 # runs them as its transaction-manager service account in ibm-backup-restore,
 # which needs get, list and patch on Db2uInstances, Db2uEngines and
-# namespaces. Fusion 2.12.2 granted that already; docs/deployment-guide.md
-# section 4.4 checks it. Without it, the hooks fail with Forbidden.
+# namespaces. On our Fusion 2.12.2 clusters it could already; check yours
+# with docs/deployment-guide.md section 4.4, which also adds the rules
+# where they are missing. Without them, the hooks fail with Forbidden.
 # manage_snapshots and the settle wait are exec hooks in the db2u container
 # of dashmpp-head-0.
 #
