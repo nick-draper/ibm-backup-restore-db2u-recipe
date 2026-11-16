@@ -99,7 +99,7 @@ Three earlier designs each failed on one point:
 
 In the **child**, the same `GROUP` variable resolves during restore, as the child's exec and check hooks always did. So the annotation hooks moved there, along with every step that uses them. Nothing extra is deployed, and a Restore maps only the instance namespace.
 
-Annotation hooks run as Fusion's `transaction-manager` service account in `ibm-backup-restore`. On the tested Fusion 2.12.2 cluster it could already patch Db2u instances, Db2u engines and namespaces, so the recipe adds no RBAC. [Deployment guide §4.4](deployment-guide.md#44-recipes-and-transform) checks that with `oc auth can-i` on every cluster that backs up **and** every cluster that restores, and shows how to add the rules to Fusion's own ClusterRole where they are missing. Without them the hooks fail with `Forbidden`.
+Annotation hooks run as Fusion's `transaction-manager` service account in `ibm-backup-restore`. On our Fusion 2.12.2 clusters it could already patch Db2u instances, Db2u engines and namespaces, but that may not hold on yours: IBM's sample `restore-pre-req.sh` grants it only `get` and `list` on Db2u resources. [Deployment guide §4.4](deployment-guide.md#44-recipes-and-transform) checks that with `oc auth can-i` on every cluster that backs up **and** every cluster that restores, and shows how to add the rules to Fusion's own ClusterRole where they are missing. Without them the hooks fail with `Forbidden`.
 
 ## Restoring into another namespace
 
